@@ -4,9 +4,10 @@
 #include "hardware/uart.h"
 #include <stdio.h>
 #include <math.h>
+#include "hardware/watchdog.h"
 
 #define SAMPLES_PER_CYCLE 256
-#define SAMPLE_RATE 60 * SAMPLES_PER_CYCLE 
+#define SAMPLE_RATE 60 * SAMPLES_PER_CYCLE
 #define CYCLES 3
 #define TOTAL_SAMPLES (SAMPLES_PER_CYCLE * CYCLES)
 
@@ -19,36 +20,87 @@
 
 volatile bool trigger_medida = false;
 
-void gpio_callback(uint gpio, uint32_t events) {
-    if (gpio == TRIGGER_GPIO && (events & GPIO_IRQ_EDGE_RISE)) {
+void gpio_callback(uint gpio, uint32_t events)
+{
+    if (gpio == TRIGGER_GPIO && (events & GPIO_IRQ_EDGE_RISE))
+    {
         trigger_medida = true;
     }
 }
 
 const float WC = 2.0f * M_PI * 106.0f;
-const float A  = 2.0f * SAMPLE_RATE;
-const float B  = WC * sqrtf(2.0f);
-const float C  = WC * WC;
+const float A = 2.0f * SAMPLE_RATE;
+const float B = WC * sqrtf(2.0f);
+const float C = WC * WC;
 const float raizde2 = sqrtf(2.0f);
 
-const float K1 = C / (A*A + A*B + C);
-const float K2 = 2.0f * (C - A*A) / (A*A + A*B + C);
-const float K3 = (A*A + C - A*B) / (A*A + A*B + C);
+const float K1 = C / (A * A + A * B + C);
+const float K2 = 2.0f * (C - A * A) / (A * A + A * B + C);
+const float K3 = (A * A + C - A * B) / (A * A + A * B + C);
 
-const float hc[16] = {(4.0/32.0) * cos(2.0*M_PI*1.0/32.0), (4.0/32.0) * cos(2.0*M_PI*2.0/32.0), (4.0/32.0) * cos(2.0*M_PI*3.0/32.0), (4.0/32.0) * cos(2.0*M_PI*4.0/32.0),
-                     (4.0/32.0) * cos(2.0*M_PI*5.0/32.0), (4.0/32.0) * cos(2.0*M_PI*6.0/32.0), (4.0/32.0) * cos(2.0*M_PI*7.0/32.0), (4.0/32.0) * cos(2.0*M_PI*8.0/32.0),
-                     (4.0/32.0) * cos(2.0*M_PI*9.0/32.0), (4.0/32.0) * cos(2.0*M_PI*10.0/32.0), (4.0/32.0) * cos(2.0*M_PI*11.0/32.0), (4.0/32.0) * cos(2.0*M_PI*12.0/32.0),
-                     (4.0/32.0) * cos(2.0*M_PI*13.0/32.0), (4.0/32.0) * cos(2.0*M_PI*14.0/32.0), (4.0/32.0) * cos(2.0*M_PI*15.0/32.0), (4.0/32.0) * cos(2.0*M_PI*16.0/32.0)};
+const float hc[16] = {(4.0 / 32.0) * cos(2.0 * M_PI * 1.0 / 32.0), (4.0 / 32.0) * cos(2.0 * M_PI * 2.0 / 32.0), (4.0 / 32.0) * cos(2.0 * M_PI * 3.0 / 32.0), (4.0 / 32.0) * cos(2.0 * M_PI * 4.0 / 32.0),
+                      (4.0 / 32.0) * cos(2.0 * M_PI * 5.0 / 32.0), (4.0 / 32.0) * cos(2.0 * M_PI * 6.0 / 32.0), (4.0 / 32.0) * cos(2.0 * M_PI * 7.0 / 32.0), (4.0 / 32.0) * cos(2.0 * M_PI * 8.0 / 32.0),
+                      (4.0 / 32.0) * cos(2.0 * M_PI * 9.0 / 32.0), (4.0 / 32.0) * cos(2.0 * M_PI * 10.0 / 32.0), (4.0 / 32.0) * cos(2.0 * M_PI * 11.0 / 32.0), (4.0 / 32.0) * cos(2.0 * M_PI * 12.0 / 32.0),
+                      (4.0 / 32.0) * cos(2.0 * M_PI * 13.0 / 32.0), (4.0 / 32.0) * cos(2.0 * M_PI * 14.0 / 32.0), (4.0 / 32.0) * cos(2.0 * M_PI * 15.0 / 32.0), (4.0 / 32.0) * cos(2.0 * M_PI * 16.0 / 32.0)};
 
-const float hs[16] = {(4.0/32.0) * sin(2.0*M_PI*1.0/32.0), (4.0/32.0) * sin(2.0*M_PI*2.0/32.0), (4.0/32.0) * sin(2.0*M_PI*3.0/32.0), (4.0/32.0) * sin(2.0*M_PI*4.0/32.0),
-                     (4.0/32.0) * sin(2.0*M_PI*5.0/32.0), (4.0/32.0) * sin(2.0*M_PI*6.0/32.0), (4.0/32.0) * sin(2.0*M_PI*7.0/32.0), (4.0/32.0) * sin(2.0*M_PI*8.0/32.0),
-                     (4.0/32.0) * sin(2.0*M_PI*9.0/32.0), (4.0/32.0) * sin(2.0*M_PI*10.0/32.0), (4.0/32.0) * sin(2.0*M_PI*11.0/32.0), (4.0/32.0) * sin(2.0*M_PI*12.0/32.0),
-                     (4.0/32.0) * sin(2.0*M_PI*13.0/32.0), (4.0/32.0) * sin(2.0*M_PI*14.0/32.0), (4.0/32.0) * sin(2.0*M_PI*15.0/32.0), (4.0/32.0) * sin(2.0*M_PI*16.0/32.0)};
+const float hs[16] = {(4.0 / 32.0) * sin(2.0 * M_PI * 1.0 / 32.0), (4.0 / 32.0) * sin(2.0 * M_PI * 2.0 / 32.0), (4.0 / 32.0) * sin(2.0 * M_PI * 3.0 / 32.0), (4.0 / 32.0) * sin(2.0 * M_PI * 4.0 / 32.0),
+                      (4.0 / 32.0) * sin(2.0 * M_PI * 5.0 / 32.0), (4.0 / 32.0) * sin(2.0 * M_PI * 6.0 / 32.0), (4.0 / 32.0) * sin(2.0 * M_PI * 7.0 / 32.0), (4.0 / 32.0) * sin(2.0 * M_PI * 8.0 / 32.0),
+                      (4.0 / 32.0) * sin(2.0 * M_PI * 9.0 / 32.0), (4.0 / 32.0) * sin(2.0 * M_PI * 10.0 / 32.0), (4.0 / 32.0) * sin(2.0 * M_PI * 11.0 / 32.0), (4.0 / 32.0) * sin(2.0 * M_PI * 12.0 / 32.0),
+                      (4.0 / 32.0) * sin(2.0 * M_PI * 13.0 / 32.0), (4.0 / 32.0) * sin(2.0 * M_PI * 14.0 / 32.0), (4.0 / 32.0) * sin(2.0 * M_PI * 15.0 / 32.0), (4.0 / 32.0) * sin(2.0 * M_PI * 16.0 / 32.0)};
 
-int main() {
-    //stdio_init_all();
+#define WDT_TIMEOUT_MS 1000 // timeout
+#define FAIL_GPIO 17        // GPIO pra simular travamento
+#define LED_RED 13          // pino do led vermelho
+
+// Função auxiliar: feed seguro (permite simular falha)
+static inline void wdt_feed_if_ok(void)
+{
+    // Se FAIL_GPIO estiver em nível alto, simula travamento -> não alimenta o sistema
+    if (!gpio_get(FAIL_GPIO))
+    {
+        watchdog_update();
+    }
+}
+
+int main()
+{
+    bool hardware_failure = false;
+    stdio_init_all();
+
+    // Diagnóstico do reset
+    if (watchdog_caused_reboot())
+    {
+        hardware_failure = true;
+        printf("Reboot: watchdog\n");
+    }
+    else
+    {
+        printf("Reboot: power-on / reset pin\n");
+    }
 
     sleep_ms(2000); // Aguarda inicialização da porta serial
+
+    // Configura pino de falha
+    gpio_init(FAIL_GPIO);
+    gpio_set_dir(FAIL_GPIO, GPIO_IN);
+    gpio_pull_down(FAIL_GPIO);
+
+    // Configura pino do led vermelho
+    gpio_init(LED_RED);
+    gpio_set_dir(LED_RED, GPIO_OUT);
+
+    // Indica falha logo no boot
+    if (hardware_failure)
+    {
+        gpio_put(LED_RED, 1); // liga LED imediatamente
+    }
+    else
+    {
+        gpio_put(LED_RED, 0);
+    }
+
+    // Habilita watchdog
+    watchdog_enable(WDT_TIMEOUT_MS, 1 /* pause_on_debug */);
 
     // --- Trigger no GPIO 15 ---
     gpio_init(TRIGGER_GPIO);
@@ -59,16 +111,15 @@ int main() {
         TRIGGER_GPIO,
         GPIO_IRQ_EDGE_RISE,
         true,
-        &gpio_callback
-    );
+        &gpio_callback);
 
     // Inicializa o ADC
     adc_init();
-    adc_gpio_init(26);  // ADC0 no GPIO26
-    adc_gpio_init(27);  // ADC1 no GPIO27
-    adc_gpio_init(28);  // ADC2 no GPIO28
+    adc_gpio_init(26); // ADC0 no GPIO26
+    adc_gpio_init(27); // ADC1 no GPIO27
+    adc_gpio_init(28); // ADC2 no GPIO28
 
-    //Inicializa comunicação UART
+    // Inicializa comunicação UART
     uart_init(UART_ID, BAUD_RATE);
     gpio_set_function(UART_TX_PIN, GPIO_FUNC_UART);
     gpio_set_function(UART_RX_PIN, GPIO_FUNC_UART);
@@ -76,18 +127,17 @@ int main() {
     char buffer_uart[80];
 
     // Configura clock do ADC para 15.36kHz * 3 canais = 46.08MHz
-    adc_set_clkdiv(48000000.0 / (SAMPLE_RATE * 3));  
+    adc_set_clkdiv(48000000.0 / (SAMPLE_RATE * 3));
 
     // Configura modo round-robin: alterna entre ch0 e ch1
     adc_select_input(0);
     adc_set_round_robin((1 << 0) | (1 << 1) | (1 << 2)); // canais 0, 1 e 2
     adc_fifo_setup(
-        true,  // habilita FIFO
-        true,  // habilita req de DMA
-        1,     // DREQ a cada amostra
+        true, // habilita FIFO
+        true, // habilita req de DMA
+        1,    // DREQ a cada amostra
         false,
-        false
-    );
+        false);
     adc_fifo_drain(); // Limpa FIFO
 
     // DMA channel
@@ -105,20 +155,23 @@ int main() {
     dma_channel_configure(
         dma_chan,
         &c,
-        raw_data,            // destino
-        &adc_hw->fifo,       // fonte
-        TOTAL_SAMPLES * 3,   // 3 canais intercalados
-        false
-    );
-    
+        raw_data,          // destino
+        &adc_hw->fifo,     // fonte
+        TOTAL_SAMPLES * 3, // 3 canais intercalados
+        false);
 
     sleep_ms(100);
 
-    int N = TOTAL_SAMPLES/CYCLES;
+    wdt_feed_if_ok();
+
+    int N = TOTAL_SAMPLES / CYCLES;
     trigger_medida = false;
-    while (1) {
-        while (!trigger_medida) {
+    while (1)
+    {
+        while (!trigger_medida)
+        {
             tight_loop_contents(); // dica pro SDK, não adiciona atraso perceptível
+            wdt_feed_if_ok();
         }
 
         trigger_medida = false;
@@ -152,65 +205,67 @@ int main() {
 
         // Primeiro calcula os offsets médios
         float soma_ch0 = 0, soma_ch1 = 0, soma_ch2 = 0;
-        for (int i = 0; i < TOTAL_SAMPLES; i++) {
-            soma_ch0 += raw_data[3*i];     // canal tensão vc
-            soma_ch1 += raw_data[3*i + 1]; // canal tensão vb
-            soma_ch2 += raw_data[3*i + 2]; // canal tensão va
+        for (int i = 0; i < TOTAL_SAMPLES; i++)
+        {
+            soma_ch0 += raw_data[3 * i];     // canal tensão vc
+            soma_ch1 += raw_data[3 * i + 1]; // canal tensão vb
+            soma_ch2 += raw_data[3 * i + 2]; // canal tensão va
         }
         float offset_va = soma_ch2 / TOTAL_SAMPLES;
         float offset_vb = soma_ch1 / TOTAL_SAMPLES;
         float offset_vc = soma_ch0 / TOTAL_SAMPLES;
 
-        for (int i = 0; i < TOTAL_SAMPLES; i++) {
+        wdt_feed_if_ok();
+
+        for (int i = 0; i < TOTAL_SAMPLES; i++)
+        {
             // pega valores intercalados
-            float leitura_va   = ((float)raw_data[3*i + 2] - offset_va) * 0.90614530136f;
-            float leitura_vb   = ((float)raw_data[3*i + 1] - offset_vb) * 0.90614530136f;
-            float leitura_vc   = ((float)raw_data[3*i] - offset_vc) * 0.90614530136f;
+            float leitura_va = ((float)raw_data[3 * i + 2] - offset_va) * 0.90614530136f;
+            float leitura_vb = ((float)raw_data[3 * i + 1] - offset_vb) * 0.90614530136f;
+            float leitura_vc = ((float)raw_data[3 * i] - offset_vc) * 0.90614530136f;
 
             // filtro va
-            float y_va = -K2*y_va1 - K3*y_va2
-                    + K1*leitura_va
-                    + 2*K1*va_ant1
-                    + K1*va_ant2;
-            va_ant2 = va_ant1; va_ant1 = leitura_va;
-            y_va2 = y_va1; y_va1 = y_va;
+            float y_va = -K2 * y_va1 - K3 * y_va2 + K1 * leitura_va + 2 * K1 * va_ant1 + K1 * va_ant2;
+            va_ant2 = va_ant1;
+            va_ant1 = leitura_va;
+            y_va2 = y_va1;
+            y_va1 = y_va;
 
             // filtro vb
-            float y_vb = -K2*y_vb1 - K3*y_vb2
-                    + K1*leitura_vb
-                    + 2*K1*vb_ant1
-                    + K1*vb_ant2;
-            vb_ant2 = vb_ant1; vb_ant1 = leitura_vb;
-            y_vb2 = y_vb1; y_vb1 = y_vb;
+            float y_vb = -K2 * y_vb1 - K3 * y_vb2 + K1 * leitura_vb + 2 * K1 * vb_ant1 + K1 * vb_ant2;
+            vb_ant2 = vb_ant1;
+            vb_ant1 = leitura_vb;
+            y_vb2 = y_vb1;
+            y_vb1 = y_vb;
 
             // filtro vc
-            float y_vc = -K2*y_vc1 - K3*y_vc2
-                    + K1*leitura_vc
-                    + 2*K1*vc_ant1
-                    + K1*vc_ant2;
-            vc_ant2 = vc_ant1; vc_ant1 = leitura_vc;
-            y_vc2 = y_vc1; y_vc1 = y_vc;
-
+            float y_vc = -K2 * y_vc1 - K3 * y_vc2 + K1 * leitura_vc + 2 * K1 * vc_ant1 + K1 * vc_ant2;
+            vc_ant2 = vc_ant1;
+            vc_ant1 = leitura_vc;
+            y_vc2 = y_vc1;
+            y_vc1 = y_vc;
 
             // acumula só último ciclo
-            if (i >= (CYCLES-1)*N) {
+            if (i >= (CYCLES - 1) * N)
+            {
                 count1++;
-                if (count1 >= 8 && count2 < 16) {
-                    Y_cva += y_va * hc[15-count2];
-                    Y_sva += y_va * hs[15-count2];
-                    Y_cvb += y_vb * hc[15-count2];
-                    Y_svb += y_vb * hs[15-count2];
-                    Y_cvc += y_vc * hc[15-count2];
-                    Y_svc += y_vc * hs[15-count2];
+                if (count1 >= 8 && count2 < 16)
+                {
+                    Y_cva += y_va * hc[15 - count2];
+                    Y_sva += y_va * hs[15 - count2];
+                    Y_cvb += y_vb * hc[15 - count2];
+                    Y_svb += y_vb * hs[15 - count2];
+                    Y_cvc += y_vc * hc[15 - count2];
+                    Y_svc += y_vc * hs[15 - count2];
                     count1 = 0;
                     count2++;
                 }
-                soma_va += y_va*y_va;
-                soma_vb += y_vb*y_vb;
-                soma_vc += y_vc*y_vc;
+                soma_va += y_va * y_va;
+                soma_vb += y_vb * y_vb;
+                soma_vc += y_vc * y_vc;
                 // soma_i += z*z;
                 // soma_p += y*z;
-                //printf("%.2f,%.2f,%.2f,%.2f;", y, z, leitura_tensao, leitura_corrente);
+                // printf("%.2f,%.2f,%.2f,%.2f;", y, z, leitura_tensao, leitura_corrente);
             }
         }
 
@@ -234,9 +289,10 @@ int main() {
         snprintf(buffer_uart, sizeof(buffer_uart), "Va%.4f Vb%.4f Vc%.4f pA%.4f pB%.4f pC%.4f;", Va_rms, Vb_rms, Vc_rms, angulo_va, angulo_vb, angulo_vc);
         uart_puts(UART_ID, buffer_uart);
 
-        // printf("\n\n\n");
-        // printf("Defasagem: %.2f, %.2f, %.2f graus\n", angulo_va * (180.0f / M_PI), angulo_vb * (180.0f / M_PI), angulo_vc * (180.0f / M_PI));
-        // // printf("Modulo Tensao: %.2f V, %.2f V, %.2f V\n", modulo_va, modulo_vb, modulo_vc);
-        // printf("Tensao RMS: %.2f V, %.2f V, %.2f V\n", Va_rms, Vb_rms, Vc_rms);
+        wdt_feed_if_ok();
+        printf("\n\n\n");
+        printf("Defasagem: %.2f, %.2f, %.2f graus\n", angulo_va * (180.0f / M_PI), angulo_vb * (180.0f / M_PI), angulo_vc * (180.0f / M_PI));
+        // printf("Modulo Tensao: %.2f V, %.2f V, %.2f V\n", modulo_va, modulo_vb, modulo_vc);
+        printf("Tensao RMS: %.2f V, %.2f V, %.2f V\n", Va_rms, Vb_rms, Vc_rms);
     }
 }

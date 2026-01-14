@@ -56,7 +56,7 @@ add_executable(${PROJECT_NAME} adc_tensao.c)
 pico_set_program_name(${PROJECT_NAME} "${PROJECT_NAME}")
 pico_set_program_version(${PROJECT_NAME} "0.1")
 
-pico_enable_stdio_uart(${PROJECT_NAME} 0)
+pico_enable_stdio_uart(${PROJECT_NAME} 1)
 pico_enable_stdio_usb(${PROJECT_NAME} 1)
 
 target_link_libraries(${PROJECT_NAME}
@@ -64,6 +64,7 @@ target_link_libraries(${PROJECT_NAME}
         hardware_adc
         hardware_dma
         hardware_uart
+        hardware_watchdog
         )
 
 target_include_directories(${PROJECT_NAME} PRIVATE
