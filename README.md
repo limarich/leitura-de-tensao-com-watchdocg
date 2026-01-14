@@ -40,6 +40,8 @@ Além da segurança, o sistema realiza medições avançadas de sinais elétrico
 | **GPIO 13** | **LED Status** | **Aceso = Resetado por Watchdog** |
 
 ## 🚀 Como Executar
+### Demonstração em Vídeo
+Assista ao vídeo de demonstração no YouTube: [https://youtu.be/X2b15_aPLxA](https://youtu.be/X2b15_aPLxA)
 
 ### Pré-requisitos
 *   Raspberry Pi Pico SDK instalado.
